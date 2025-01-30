@@ -53,6 +53,86 @@ def ping():
     return result.decode()
 """
 }
+
+# Secure code examples
+SECURE_CODE_EXAMPLES = {
+    "SQL Injection": """
+from flask import Flask, request
+import sqlite3
+
+app = Flask(__name__)
+
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    db = sqlite3.connect('database.db')
+    cursor = db.cursor()
+    # Using parameterized query to prevent SQL injection
+    cursor.execute("SELECT * FROM products WHERE name LIKE ?", ('%' + query + '%',))
+    results = cursor.fetchall()
+    return str(results)
+""",
+    "File Upload": """
+from flask import Flask, request
+import os
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+UPLOAD_FOLDER = '/uploads'
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg'}
+
+def allowed_file(filename):
+    return '.' in filename and \\
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    file = request.files['file']
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        safe_path = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.abspath(safe_path).startswith(
+            os.path.abspath(UPLOAD_FOLDER)
+        ):
+            file.save(safe_path)
+            return 'File uploaded successfully'
+    return 'Invalid file', 400
+""",
+    "Command Injection": """
+from flask import Flask, request
+import subprocess
+import ipaddress
+
+app = Flask(__name__)
+
+def is_valid_ip(ip_str):
+    try:
+        ipaddress.ip_address(ip_str)
+        return True
+    except ValueError:
+        return False
+
+@app.route('/ping', methods=['POST'])
+def ping():
+    host = request.form.get('host', '')
+    if not is_valid_ip(host):
+        return 'Invalid IP address', 400
+    
+    try:
+        # Use list of arguments instead of shell=True
+        result = subprocess.run(
+            ['ping', '-c', '1', host],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            shell=False
+        )
+        return result.stdout
+    except subprocess.TimeoutExpired:
+        return 'Ping timeout', 408
+"""
+}
+
 # Page configuration
 st.set_page_config(
     page_title="Code Vulnerability Scanner",
@@ -60,52 +140,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for better UI
-st.markdown("""
-    <style>
-        /* Improve spacing between input and button */
-        .stButton {
-            margin-top: 1rem;
-        }
-        
-        /* Better alignment for select box */
-        .stSelectbox {
-            margin-bottom: 0.5rem;
-        }
-        
-        /* Improve demo section spacing */
-        .demo-title {
-            margin-top: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        /* Make the text area fill the column better */
-        .stTextArea {
-            margin-bottom: 1rem;
-        }
-        
-        /* Improve code block readability */
-        .code-block code {
-            padding: 0.5rem;
-            display: block;
-            overflow-x: auto;
-            line-height: 1.5;
-        }
-        
-        /* Better spacing for vulnerability cards */
-        .vulnerability-card {
-            margin: 1.5rem 0;
-        }
-        
-        /* Improve header spacing */
-        .vulnerability-card h3 {
-            margin-top: 0;
-            margin-bottom: 1rem;
-            color: #1E3A8A;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
+# Custom CSS
 st.markdown("""
     <style>
         /* Main container */
@@ -174,13 +209,16 @@ st.markdown("""
         
         /* Code blocks */
         .code-block {
-            background-color: #1E293B;
-            color: #E5E7EB;
+            background-color: #282c34;
+            color: #abb2bf;
             padding: 1rem;
             border-radius: 6px;
             font-family: 'Courier New', Courier, monospace;
             margin: 1rem 0;
             overflow-x: auto;
+            border: 1px solid #3e4451;
+            font-size: 0.9rem;
+            line-height: 1.5;
         }
         
         /* Summary section */
@@ -214,14 +252,26 @@ st.markdown("""
             background-color: #D1FAE5;
             color: #059669;
         }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-        /* Previous styles remain... */
         
-        /* Demo section styling */
+        /* Code comparison section */
+        .code-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .code-section {
+            background-color: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+        }
+        .code-section h4 {
+            color: #1e3a8a;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Demo section */
         .demo-container {
             background-color: #F8FAFC;
             border-radius: 8px;
@@ -229,35 +279,20 @@ st.markdown("""
             margin-bottom: 1rem;
             border: 1px solid #E5E7EB;
         }
-        
         .demo-title {
             color: #2563EB;
             font-size: 1rem;
             font-weight: 500;
             margin-bottom: 0.5rem;
         }
-        
-        /* Make radio buttons more visible */
-        .stRadio > label {
-            color: #1E3A8A !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Style the selectbox */
-        .stSelectbox > label {
-            color: #1E3A8A !important;
-            font-weight: 500 !important;
-        }
-        
-        .stSelectbox > div > div {
-            background-color: white !important;
-            border: 1px solid #E5E7EB !important;
-            border-radius: 8px !important;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-# Try to get API key from different sources
+# Initialize session state
+if 'code_input' not in st.session_state:
+    st.session_state.code_input = ""
+
+# API configuration
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except:
@@ -267,30 +302,19 @@ if not GOOGLE_API_KEY:
     st.error("No Google API key found. Please set the GOOGLE_API_KEY in your .env file or Streamlit secrets.")
     st.stop()
 
-# Configure Google Gemini AI
+# Configure Gemini
 genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
 
-# Safety settings
-safety_settings = [
-    {
-        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "threshold": "BLOCK_NONE",
-    },
-    {
-        "category": "HARM_CATEGORY_HATE_SPEECH",
-        "threshold": "BLOCK_ONLY_HIGH",
-    },
-    {
-        "category": "HARM_CATEGORY_HARASSMENT",
-        "threshold": "BLOCK_ONLY_HIGH",
-    },
-    {
-        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "threshold": "BLOCK_ONLY_HIGH",
-    },
-]
-
-model = genai.GenerativeModel('gemini-pro', safety_settings=safety_settings)
+def get_secure_code_example(vuln_type):
+    """Get the secure code example for a vulnerability type"""
+    if "SQL Injection" in vuln_type:
+        return SECURE_CODE_EXAMPLES["SQL Injection"]
+    elif "File Upload" in vuln_type or "Path Traversal" in vuln_type:
+        return SECURE_CODE_EXAMPLES["File Upload"]
+    elif "Command Injection" in vuln_type:
+        return SECURE_CODE_EXAMPLES["Command Injection"]
+    return "No secure code example available for this vulnerability type."
 
 def analyze_code(code):
     prompt = """
@@ -299,31 +323,35 @@ def analyze_code(code):
     {
         "vulnerabilities": [
             {
-                "type": "string - name of vulnerability",
-                "severity": "string - must be exactly one of: high, medium, or low",
-                "description": "string - clear description of the vulnerability",
-                "recommendation": "string - specific steps to fix the vulnerability",
-                "code_block": "string - exact vulnerable code snippet from the input"
+                "type": "vulnerability name",
+                "severity": "high/medium/low",
+                "description": "clear description of the issue",
+                "recommendation": "specific steps to fix it",
+                "code_block": "exact vulnerable code"
             }
         ],
-        "summary": "string - brief overview of all findings",
-        "risk_level": "string - must be exactly one of: high, medium, or low"
+        "summary": "brief overview of findings",
+        "risk_level": "high/medium/low"
     }
+    Analyze this code:
     """
     
     try:
         response = model.generate_content(prompt + code)
         if response.parts:
             result_text = response.text.strip()
-            if result_text.startswith('```json'):
-                result_text = result_text.replace('```json', '', 1)
-            if result_text.endswith('```'):
-                result_text = result_text[:-3]
-            return json.loads(result_text.strip())
+            if '```json' in result_text:
+                result_text = result_text.split('```json')[1].split('```')[0].strip()
+            elif '```' in result_text:
+                result_text = result_text.split('```')[1].split('```')[0].strip()
+            return json.loads(result_text)
     except Exception as e:
         st.error(f"Error analyzing code: {str(e)}")
         return None
 
+def load_example():
+    if st.session_state.demo_select != "Select an example...":
+        st.session_state.code_input = DEMO_EXAMPLES[st.session_state.demo_select]
 
 def main():
     st.title("Code Vulnerability Scanner")
@@ -332,7 +360,12 @@ def main():
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        code = st.text_area("Paste your code here:", height=200)
+        code = st.text_area(
+            "Paste your code here:",
+            value=st.session_state.code_input,
+            height=200,
+            key="code_area"
+        )
     
     with col2:
         st.markdown("""
@@ -342,18 +375,9 @@ def main():
         demo_selection = st.selectbox(
             "Load example code:",
             ["Select an example..."] + list(DEMO_EXAMPLES.keys()),
-            key="demo_select"
+            key="demo_select",
+            on_change=load_example
         )
-        
-        if st.button("Load Example", key="load_example") and demo_selection != "Select an example...":
-            code = DEMO_EXAMPLES[demo_selection]
-            # Use st.experimental_rerun() to update the text area
-            st.session_state['code_input'] = code
-            st.experimental_rerun()
-    
-    # If there's code in the session state, update the text area
-    if 'code_input' in st.session_state:
-        st.session_state['code_input'] = code
     
     # Center the analyze button
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -369,7 +393,6 @@ def main():
             result = analyze_code(code)
             
             if result:
-                # Display results [Previous display code remains the same...]
                 # Summary Section
                 st.markdown(f"""
                     <div class="summary-card">
@@ -385,6 +408,7 @@ def main():
                 st.markdown("<h2>Vulnerabilities Found</h2>", unsafe_allow_html=True)
                 
                 for vuln in result['vulnerabilities']:
+                    secure_code = get_secure_code_example(vuln['type'])
                     st.markdown(f"""
                         <div class="vulnerability-card {vuln['severity']}">
                             <h3>{vuln['type']}</h3>
@@ -392,7 +416,16 @@ def main():
                                 <span class="risk-badge {vuln['severity']}">{vuln['severity'].upper()}</span>
                             </p>
                             <p><strong>Description:</strong> {vuln['description']}</p>
-                            <div class="code-block"><code>{vuln['code_block']}</code></div>
+                            <div class="code-comparison">
+                                <div class="code-section">
+                                    <h4>Vulnerable Code</h4>
+                                    <div class="code-block"><code>{vuln['code_block']}</code></div>
+                                </div>
+                                <div class="code-section">
+                                    <h4>Recommended Secure Code</h4>
+                                    <div class="code-block"><code>{secure_code}</code></div>
+                                </div>
+                            </div>
                             <p><strong>Recommendation:</strong> {vuln['recommendation']}</p>
                         </div>
                     """, unsafe_allow_html=True)
