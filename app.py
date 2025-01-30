@@ -83,13 +83,29 @@ st.markdown("""
         
         /* Code blocks */
         .code-block {
-            background-color: #1E293B;
-            color: #E5E7EB;
+            background-color: #282a36;
+            color: #f8f8f2;
             padding: 1rem;
             border-radius: 6px;
             font-family: 'Courier New', Courier, monospace;
             margin: 1rem 0;
             overflow-x: auto;
+            border: 1px solid #44475a;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+        
+        /* Syntax highlighting for code */
+        .code-block .keyword { color: #ff79c6; }
+        .code-block .string { color: #f1fa8c; }
+        .code-block .comment { color: #6272a4; }
+        .code-block .function { color: #50fa7b; }
+        .code-block .number { color: #bd93f9; }
+        .code-block .operator { color: #ff79c6; }
+        
+        /* Add a subtle gradient to the code block */
+        .code-block {
+            background: linear-gradient(to bottom, #282a36, #2d303e);
         }
         
         /* Summary section */
