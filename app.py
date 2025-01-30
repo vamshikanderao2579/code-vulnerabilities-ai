@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import google.generativeai as genai
 import os
@@ -7,490 +8,303 @@ import json
 # Load environment variables
 load_dotenv()
 
-# Sample vulnerable code examples
-DEMO_EXAMPLES = {
-    "SQL Injection Example": """
-from flask import Flask, request
-import sqlite3
-
-app = Flask(__name__)
-
-@app.route('/search')
-def search():
-    query = request.args.get('q', '')
-    db = sqlite3.connect('database.db')
-    cursor = db.cursor()
-    # Vulnerable to SQL injection
-    cursor.execute(f"SELECT * FROM products WHERE name LIKE '%{query}%'")
-    results = cursor.fetchall()
-    return str(results)
-""",
-    "File Upload Vulnerability": """
-from flask import Flask, request
-import os
-
-app = Flask(__name__)
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    file = request.files['file']
-    # Vulnerable to path traversal and unrestricted file upload
-    filename = file.filename
-    file.save(os.path.join('/uploads', filename))
-    return 'File uploaded successfully'
-""",
-    "Command Injection Example": """
-from flask import Flask, request
-import subprocess
-
-app = Flask(__name__)
-
-@app.route('/ping', methods=['POST'])
-def ping():
-    host = request.form['host']
-    # Vulnerable to command injection
-    result = subprocess.check_output(f'ping -c 1 {host}', shell=True)
-    return result.decode()
-"""
-}
-
-# Secure code examples
-SECURE_CODE_EXAMPLES = {
-    "SQL Injection": """
-from flask import Flask, request
-import sqlite3
-
-app = Flask(__name__)
-
-@app.route('/search')
-def search():
-    query = request.args.get('q', '')
-    db = sqlite3.connect('database.db')
-    cursor = db.cursor()
-    # Using parameterized query to prevent SQL injection
-    cursor.execute("SELECT * FROM products WHERE name LIKE ?", ('%' + query + '%',))
-    results = cursor.fetchall()
-    return str(results)
-""",
-    "File Upload": """
-from flask import Flask, request
-import os
-from werkzeug.utils import secure_filename
-
-app = Flask(__name__)
-UPLOAD_FOLDER = '/uploads'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg'}
-
-def allowed_file(filename):
-    return '.' in filename and \\
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    file = request.files['file']
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        safe_path = os.path.join(UPLOAD_FOLDER, filename)
-        if os.path.abspath(safe_path).startswith(
-            os.path.abspath(UPLOAD_FOLDER)
-        ):
-            file.save(safe_path)
-            return 'File uploaded successfully'
-    return 'Invalid file', 400
-""",
-    "Command Injection": """
-from flask import Flask, request
-import subprocess
-import ipaddress
-
-app = Flask(__name__)
-
-def is_valid_ip(ip_str):
-    try:
-        ipaddress.ip_address(ip_str)
-        return True
-    except ValueError:
-        return False
-
-@app.route('/ping', methods=['POST'])
-def ping():
-    host = request.form.get('host', '')
-    if not is_valid_ip(host):
-        return 'Invalid IP address', 400
-    
-    try:
-        # Use list of arguments instead of shell=True
-        result = subprocess.run(
-            ['ping', '-c', '1', host],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            shell=False
-        )
-        return result.stdout
-    except subprocess.TimeoutExpired:
-        return 'Ping timeout', 408
-"""
-}
-
 # Page configuration
 st.set_page_config(
     page_title="Code Vulnerability Scanner",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
-# Custom CSS
-st.markdown("""
-    <style>
-        /* Main container */
-        .main > div {
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        /* Headers */
-        h1 {
-            color: #1E3A8A;
-            font-size: 2.5rem !important;
-            margin-bottom: 2rem !important;
-            font-weight: 600 !important;
-        }
-        h2 {
-            color: #2563EB;
-            font-size: 1.8rem !important;
-            margin-top: 2rem !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Code input */
-        .stTextArea textarea {
-            font-family: 'Courier New', Courier, monospace;
-            border: 1px solid #E5E7EB !important;
-            border-radius: 8px !important;
-            background-color: #F8FAFC !important;
-            padding: 1rem !important;
-        }
-        
-        /* Button */
-        .stButton button {
-            background-color: #2563EB !important;
-            color: white !important;
-            padding: 0.5rem 2rem !important;
-            border-radius: 8px !important;
-            border: none !important;
-            font-weight: 500 !important;
-            transition: all 0.3s ease !important;
-        }
-        .stButton button:hover {
-            background-color: #1D4ED8 !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        /* Vulnerability cards */
-        .vulnerability-card {
-            background-color: white;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            border: 1px solid #E5E7EB;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .vulnerability-card.high {
-            border-left: 4px solid #DC2626;
-        }
-        .vulnerability-card.medium {
-            border-left: 4px solid #F59E0B;
-        }
-        .vulnerability-card.low {
-            border-left: 4px solid #10B981;
-        }
-        
-        /* Code blocks */
-        .code-block {
-            background-color: #282c34;
-            color: #abb2bf;
-            padding: 1rem;
-            border-radius: 6px;
-            font-family: 'Courier New', Courier, monospace;
-            margin: 1rem 0;
-            overflow-x: auto;
-            border: 1px solid #3e4451;
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-        
-        /* Summary section */
-        .summary-card {
-            background-color: #F8FAFC;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            border: 1px solid #E5E7EB;
-        }
-        
-        /* Risk level badges */
-        .risk-badge {
-            display: inline-block;
-            padding: 0.25rem 1rem;
-            border-radius: 9999px;
-            font-weight: 500;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            margin-left: 0.5rem;
-        }
-        .risk-badge.high {
-            background-color: #FEE2E2;
-            color: #DC2626;
-        }
-        .risk-badge.medium {
-            background-color: #FEF3C7;
-            color: #D97706;
-        }
-        .risk-badge.low {
-            background-color: #D1FAE5;
-            color: #059669;
-        }
-        
-        /* Code comparison section */
-        .code-comparison {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        .code-section {
-            background-color: #f8fafc;
-            border-radius: 8px;
-            padding: 1rem;
-            border: 1px solid #e5e7eb;
-        }
-        .code-section h4 {
-            color: #1e3a8a;
-            margin-bottom: 0.5rem;
-        }
-        
-        /* Demo section */
-        .demo-container {
-            background-color: #F8FAFC;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid #E5E7EB;
-        }
-        .demo-title {
-            color: #2563EB;
-            font-size: 1rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# Initialize session state
-if 'code_input' not in st.session_state:
-    st.session_state.code_input = ""
-
-# API configuration
-try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-except:
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-if not GOOGLE_API_KEY:
-    st.error("No Google API key found. Please set the GOOGLE_API_KEY in your .env file or Streamlit secrets.")
-    st.stop()
-
-# Configure Gemini
+# Configure Google Gemini AI
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]  # For Streamlit deployment
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
 
-def get_secure_code_example(vuln_type):
-    """Get the secure code example for a vulnerability type"""
-    if "SQL Injection" in vuln_type:
-        return SECURE_CODE_EXAMPLES["SQL Injection"]
-    elif "File Upload" in vuln_type or "Path Traversal" in vuln_type:
-        return SECURE_CODE_EXAMPLES["File Upload"]
-    elif "Command Injection" in vuln_type:
-        return SECURE_CODE_EXAMPLES["Command Injection"]
-    return "No secure code example available for this vulnerability type."
+# Safety settings for Gemini
+safety_settings = [
+    {
+        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "threshold": "BLOCK_NONE",
+    },
+    {
+        "category": "HARM_CATEGORY_HATE_SPEECH",
+        "threshold": "BLOCK_ONLY_HIGH",
+    },
+    {
+        "category": "HARM_CATEGORY_HARASSMENT",
+        "threshold": "BLOCK_ONLY_HIGH",
+    },
+    {
+        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "threshold": "BLOCK_ONLY_HIGH",
+    },
+]
+
+model = genai.GenerativeModel(
+    'gemini-pro',
+    safety_settings=safety_settings
+)
 
 def analyze_code(code):
     prompt = """
     You are a security expert analyzing code for vulnerabilities. 
-    Your task is to return ONLY a JSON object in the following exact format, with no additional text or explanation:
+    Your task is to return ONLY a JSON object in the following exact format, with no additional text, markdown, or explanation:
 
     {
         "vulnerabilities": [
             {
-                "type": "vulnerability name",
-                "severity": "high/medium/low",
-                "description": "clear description of the issue",
-                "recommendation": "specific steps to fix it",
-                "code_block": "exact vulnerable code",
-                "secure_code": "complete secure version of the code showing how to fix it"
+                "type": "string - name of vulnerability",
+                "severity": "string - must be exactly one of: high, medium, or low",
+                "description": "string - clear description of the vulnerability",
+                "recommendation": "string - specific steps to fix the vulnerability",
+                "code_block": "string - exact vulnerable code snippet from the input"
             }
         ],
-        "summary": "brief overview of findings",
-        "risk_level": "high/medium/low"
+        "summary": "string - brief overview of all findings",
+        "risk_level": "string - must be exactly one of: high, medium, or low"
     }
 
     Important rules:
-    1. Each vulnerability must include complete secure_code that shows the fixed version
-    2. severity and risk_level must be exactly "high", "medium", or "low" (lowercase)
-    3. code_block should contain the exact vulnerable code snippet from the input
-    4. secure_code should be a complete, working example of the fixed code
-    5. Return ONLY the JSON object, no other text or markdown
+    1. severity and risk_level must be exactly "high", "medium", or "low" (lowercase)
+    2. code_block should contain the exact vulnerable code snippet from the input
+    3. Return ONLY the JSON object, no other text
+    4. Ensure all JSON fields are present
+    5. Make recommendation specific and actionable
 
-    Analyze this code:
+    Analyze this code and respond ONLY with the JSON object:
     """
     
     try:
         response = model.generate_content(
             prompt + code,
             generation_config={
-                'temperature': 0.1,
                 'max_output_tokens': 2000,
+                'temperature': 0.1
             }
         )
         
-        # Debug: Print raw response
-        st.write("Debug - Raw response:", response)
-        
-        if not response.parts:
-            raise Exception("No response generated")
-        
-        # Get the first part's text
-        result_text = response.parts[0].text.strip()
+        if response.parts:
+            # Clean and parse the response
+            result_text = response.text.strip()
+            if result_text.startswith('```json'):
+                result_text = result_text.replace('```json', '', 1)
+            if result_text.endswith('```'):
+                result_text = result_text[:-3]
             
-        # Debug: Print text before cleaning
-        st.write("Debug - Before cleaning:", result_text)
-            
-        # Clean up the response text
-        if '```json' in result_text:
-            result_text = result_text.split('```json')[1].split('```')[0].strip()
-        elif '```' in result_text:
-            result_text = result_text.split('```')[1].split('```')[0].strip()
-            
-        # Debug: Print cleaned text
-        st.write("Debug - After cleaning:", result_text)
-            
-        try:
-            result = json.loads(result_text)
-            
-            # Validate required fields
-            required_fields = ['vulnerabilities', 'summary', 'risk_level']
-            if not all(field in result for field in required_fields):
-                missing = [f for f in required_fields if f not in result]
-                raise ValueError(f"Missing required fields: {', '.join(missing)}")
-                
-            # Validate vulnerabilities structure
-            if not isinstance(result['vulnerabilities'], list):
-                raise ValueError("'vulnerabilities' must be a list")
-                
-            for vuln in result['vulnerabilities']:
-                required_vuln_fields = ['type', 'severity', 'description', 'recommendation', 'code_block', 'secure_code']
-                if not all(field in vuln for field in required_vuln_fields):
-                    missing = [f for f in required_vuln_fields if f not in vuln]
-                    raise ValueError(f"Vulnerability missing required fields: {', '.join(missing)}")
-                    
-            return result
-            
-        except json.JSONDecodeError as e:
-            st.error(f"Invalid JSON format: {str(e)}")
-            st.error("Raw response:")
-            st.code(result_text)
-            return None
-            
+            result_text = result_text.strip()
+            return json.loads(result_text)
     except Exception as e:
-        st.error(f"Error during analysis: {str(e)}")
-        st.error("Full error:")
-        st.exception(e)
+        st.error(f"Error analyzing code: {str(e)}")
         return None
-
-def load_example():
-    if st.session_state.demo_select != "Select an example...":
-        st.session_state.code_input = DEMO_EXAMPLES[st.session_state.demo_select]
 
 def main():
     st.title("Code Vulnerability Scanner")
     
-    # Create two columns for the input section
-    col1, col2 = st.columns([3, 1])
+    # Custom CSS
+    st.markdown("""
+        <style>
+        .vulnerability-high {
+            border-left: 4px solid #ff4b4b;
+            padding-left: 10px;
+        }
+        .vulnerability-medium {
+            border-left: 4px solid #ffa600;
+            padding-left: 10px;
+        }
+        .vulnerability-low {
+            border-left: 4px solid #00cc66;
+            padding-left: 10px;
+        }
+        .code-block {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        </style>
+    """, unsafe_allow_html=True)
     
-    with col1:
-        code = st.text_area(
-            "Paste your code here:",
-            value=st.session_state.code_input,
-            height=200,
-            key="code_area"
-        )
+    # Code input
+    code = st.text_area("Paste your code here:", height=200)
     
-    with col2:
-        st.markdown("""
-            <div class="demo-title">Try a Demo</div>
-        """, unsafe_allow_html=True)
-        
-        demo_selection = st.selectbox(
-            "Load example code:",
-            ["Select an example..."] + list(DEMO_EXAMPLES.keys()),
-            key="demo_select",
-            on_change=load_example
-        )
-    
-    # Center the analyze button
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        analyze_button = st.button("Analyze Code", use_container_width=True)
-    
-    if analyze_button:
+    if st.button("Analyze Code"):
         if not code.strip():
-            st.warning("Please enter some code to analyze or select a demo example.")
+            st.warning("Please enter some code to analyze.")
             return
             
         with st.spinner("Analyzing code..."):
             result = analyze_code(code)
             
             if result:
-                # Summary Section
-                st.markdown(f"""
-                    <div class="summary-card">
-                        <h2>Analysis Summary</h2>
-                        <p><strong>Risk Level:</strong> 
-                            <span class="risk-badge {result['risk_level']}">{result['risk_level'].upper()}</span>
-                        </p>
-                        <p>{result['summary']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
+                # Display summary
+                st.header("Analysis Summary")
+                risk_color = {
+                    "high": "🔴",
+                    "medium": "🟡",
+                    "low": "🟢"
+                }
+                st.markdown(f"**Risk Level:** {risk_color.get(result['risk_level'], '⚪')} {result['risk_level'].upper()}")
+                st.markdown(f"**Summary:** {result['summary']}")
                 
-                # Vulnerabilities Section
-                if result['vulnerabilities']:
-                    st.markdown("<h2>Vulnerabilities Found</h2>", unsafe_allow_html=True)
-                    
-                    for vuln in result['vulnerabilities']:
-                        st.markdown(f"""
-                            <div class="vulnerability-card {vuln['severity']}">
-                                <h3>{vuln['type']}</h3>
-                                <p><strong>Severity:</strong> 
-                                    <span class="risk-badge {vuln['severity']}">{vuln['severity'].upper()}</span>
-                                </p>
-                                <p><strong>Description:</strong> {vuln['description']}</p>
-                                <div class="code-comparison">
-                                    <div class="code-section">
-                                        <h4>Vulnerable Code</h4>
-                                        <div class="code-block"><code>{vuln['code_block']}</code></div>
-                                    </div>
-                                    <div class="code-section">
-                                        <h4>Secure Code</h4>
-                                        <div class="code-block"><code>{vuln['secure_code']}</code></div>
-                                    </div>
-                                </div>
-                                <p><strong>Recommendation:</strong> {vuln['recommendation']}</p>
-                            </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.success("No vulnerabilities found in the code!")
+                # Display vulnerabilities
+                st.header("Vulnerabilities Found")
+                for vuln in result['vulnerabilities']:
+                    with st.expander(f"{vuln['type']} - {vuln['severity'].upper()}"):
+                        st.markdown(f"<div class='vulnerability-{vuln['severity']}'>"
+                                  f"<p><strong>Description:</strong> {vuln['description']}</p>"
+                                  f"<div class='code-block'><code>{vuln['code_block']}</code></div>"
+                                  f"<p><strong>Recommendation:</strong> {vuln['recommendation']}</p>"
+                                  "</div>", 
+                                  unsafe_allow_html=True)
 
 if __name__ == '__main__':
     main()
+
+# *********************
+# LOCAL TESTING WITHOUT STREAMLIT 
+# *********************
+
+
+
+# from flask import Flask, request, jsonify, render_template
+# import google.generativeai as genai
+# import os
+# from dotenv import load_dotenv
+# import json
+
+# # Load environment variables
+# load_dotenv()
+
+# app = Flask(__name__)
+
+# # Configure Google Gemini AI
+# genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+
+# safety_settings = [
+#     {
+#         "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+#         "threshold": "BLOCK_NONE",
+#     },
+#     {
+#         "category": "HARM_CATEGORY_HATE_SPEECH",
+#         "threshold": "BLOCK_ONLY_HIGH",
+#     },
+#     {
+#         "category": "HARM_CATEGORY_HARASSMENT",
+#         "threshold": "BLOCK_ONLY_HIGH",
+#     },
+#     {
+#         "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+#         "threshold": "BLOCK_ONLY_HIGH",
+#     },
+# ]
+
+# model = genai.GenerativeModel(
+#     'gemini-pro',
+#     safety_settings=safety_settings
+# )
+
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
+
+# @app.route('/analyze', methods=['POST'])
+# def analyze_code():
+#     code = request.json.get('code', '')
+    
+#     prompt = """
+#     You are a security expert analyzing code for vulnerabilities. 
+#     Your task is to return ONLY a JSON object in the following exact format, with no additional text, markdown, or explanation:
+
+#     {
+#         "vulnerabilities": [
+#             {
+#                 "type": "string - name of vulnerability",
+#                 "severity": "string - must be exactly one of: high, medium, or low",
+#                 "description": "string - clear description of the vulnerability",
+#                 "recommendation": "string - specific steps to fix the vulnerability",
+#                 "code_block": "string - exact vulnerable code snippet from the input"
+#             }
+#         ],
+#         "summary": "string - brief overview of all findings",
+#         "risk_level": "string - must be exactly one of: high, medium, or low"
+#     }
+
+#     Important rules:
+#     1. severity and risk_level must be exactly "high", "medium", or "low" (lowercase)
+#     2. code_block should contain the exact vulnerable code snippet from the input
+#     3. Return ONLY the JSON object, no other text
+#     4. Ensure all JSON fields are present
+#     5. Make recommendation specific and actionable
+
+#     Analyze this code and respond ONLY with the JSON object:
+
+#     """
+    
+#     try:
+#         response = model.generate_content(
+#             prompt + code,
+#             generation_config={
+#                 'max_output_tokens': 2000,
+#                 'temperature': 0.1
+#             }
+#         )
+        
+#         if response.parts:
+#             try:
+#                 # Clean the response text
+#                 result_text = response.text.strip()
+                
+#                 # Remove any markdown code block indicators if present
+#                 if result_text.startswith('```json'):
+#                     result_text = result_text.replace('```json', '', 1)
+#                 if result_text.endswith('```'):
+#                     result_text = result_text[:-3]
+                
+#                 result_text = result_text.strip()
+                
+#                 # Parse JSON
+#                 json_result = json.loads(result_text)
+                
+#                 # Validate required fields
+#                 required_fields = ['vulnerabilities', 'summary', 'risk_level']
+#                 if not all(field in json_result for field in required_fields):
+#                     raise ValueError("Missing required fields in JSON response")
+                
+#                 # Validate vulnerabilities structure
+#                 for vuln in json_result['vulnerabilities']:
+#                     required_vuln_fields = ['type', 'severity', 'description', 'recommendation', 'code_block']
+#                     if not all(field in vuln for field in required_vuln_fields):
+#                         raise ValueError("Missing required fields in vulnerability")
+#                     if vuln['severity'] not in ['high', 'medium', 'low']:
+#                         raise ValueError("Invalid severity level")
+                
+#                 if json_result['risk_level'] not in ['high', 'medium', 'low']:
+#                     raise ValueError("Invalid risk level")
+                
+#                 return jsonify({
+#                     "status": "success",
+#                     "result": json_result
+#                 })
+#             except (json.JSONDecodeError, ValueError) as e:
+#                 return jsonify({
+#                     "status": "error",
+#                     "message": f"Invalid JSON format: {str(e)}",
+#                     "raw_response": result_text
+#                 })
+#         else:
+#             return jsonify({
+#                 "status": "error",
+#                 "message": "No response generated",
+#                 "details": str(response)
+#             })
+            
+#     except Exception as e:
+#         return jsonify({
+#             "status": "error",
+#             "message": str(e)
+#         })
+
+# if __name__ == '__main__':
+#     app.run(debug=True)
+
+
+
