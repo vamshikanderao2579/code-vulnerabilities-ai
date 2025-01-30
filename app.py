@@ -355,30 +355,29 @@ def analyze_code(code):
             }
         )
         
-        if not response.text:
-            raise Exception("No response generated")
-            
         # Debug: Print raw response
-        st.debug(f"Raw response: {response.text}")
+        st.write("Debug - Raw response:", response)
+        
+        if not response.parts:
+            raise Exception("No response generated")
+        
+        # Get the first part's text
+        result_text = response.parts[0].text.strip()
+            
+        # Debug: Print text before cleaning
+        st.write("Debug - Before cleaning:", result_text)
             
         # Clean up the response text
-        result_text = response.text.strip()
-        
-        # Handle markdown code blocks if present
         if '```json' in result_text:
             result_text = result_text.split('```json')[1].split('```')[0].strip()
         elif '```' in result_text:
             result_text = result_text.split('```')[1].split('```')[0].strip()
             
         # Debug: Print cleaned text
-        st.debug(f"Cleaned text: {result_text}")
+        st.write("Debug - After cleaning:", result_text)
             
-        # Parse JSON
         try:
             result = json.loads(result_text)
-            
-            # Debug: Print parsed result
-            st.debug(f"Parsed result: {json.dumps(result, indent=2)}")
             
             # Validate required fields
             required_fields = ['vulnerabilities', 'summary', 'risk_level']
@@ -406,6 +405,8 @@ def analyze_code(code):
             
     except Exception as e:
         st.error(f"Error during analysis: {str(e)}")
+        st.error("Full error:")
+        st.exception(e)
         return None
 
 def load_example():
