@@ -17,129 +17,188 @@ st.set_page_config(
 # Custom CSS for better UI
 st.markdown("""
     <style>
-        /* Main container */
-        .main > div {
-            padding: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        /* Headers */
-        h1 {
-            color: #1E3A8A;
-            font-size: 2.5rem !important;
-            margin-bottom: 2rem !important;
-            font-weight: 600 !important;
-        }
-        h2 {
-            color: #2563EB;
-            font-size: 1.8rem !important;
-            margin-top: 2rem !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Code input */
-        .stTextArea textarea {
-            font-family: 'Courier New', Courier, monospace;
-            border: 1px solid #E5E7EB !important;
-            border-radius: 8px !important;
-            background-color: #F8FAFC !important;
-            padding: 1rem !important;
-        }
-        
-        /* Button */
-        .stButton button {
-            background-color: #2563EB !important;
-            color: white !important;
-            padding: 0.5rem 2rem !important;
-            border-radius: 8px !important;
-            border: none !important;
-            font-weight: 500 !important;
-            transition: all 0.3s ease !important;
-        }
-        .stButton button:hover {
-            background-color: #1D4ED8 !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-        }
-        
-        /* Vulnerability cards */
-        .vulnerability-card {
-            background-color: white;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            border: 1px solid #E5E7EB;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .vulnerability-card.high {
-            border-left: 4px solid #DC2626;
-        }
-        .vulnerability-card.medium {
-            border-left: 4px solid #F59E0B;
-        }
-        .vulnerability-card.low {
-            border-left: 4px solid #10B981;
-        }
-        
-        /* Code blocks */
-        .code-block {
-            background-color: #282a36;
-            color: #f8f8f2;
-            padding: 1rem;
-            border-radius: 6px;
-            font-family: 'Courier New', Courier, monospace;
-            margin: 1rem 0;
-            overflow-x: auto;
-            border: 1px solid #44475a;
-            line-height: 1.5;
-            font-size: 0.9rem;
-        }
-        
-        /* Syntax highlighting for code */
-        .code-block .keyword { color: #ff79c6; }
-        .code-block .string { color: #f1fa8c; }
-        .code-block .comment { color: #6272a4; }
-        .code-block .function { color: #50fa7b; }
-        .code-block .number { color: #bd93f9; }
-        .code-block .operator { color: #ff79c6; }
-        
-        /* Add a subtle gradient to the code block */
-        .code-block {
-            background: linear-gradient(to bottom, #282a36, #2d303e);
-        }
-        
-        /* Summary section */
-        .summary-card {
-            background-color: #F8FAFC;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 1.5rem 0;
-            border: 1px solid #E5E7EB;
-        }
-        
-        /* Risk level badges */
-        .risk-badge {
-            display: inline-block;
-            padding: 0.25rem 1rem;
-            border-radius: 9999px;
-            font-weight: 500;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            margin-left: 0.5rem;
-        }
-        .risk-badge.high {
-            background-color: #FEE2E2;
-            color: #DC2626;
-        }
-        .risk-badge.medium {
-            background-color: #FEF3C7;
-            color: #D97706;
-        }
-        .risk-badge.low {
-            background-color: #D1FAE5;
-            color: #059669;
-        }
-    </style>
+    /* Main container */
+    .main > div {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    /* Headers */
+    h1 {
+        color: #1E3A8A;
+        font-size: 2.5rem !important;
+        margin-bottom: 2rem !important;
+        font-weight: 600 !important;
+    }
+    h2 {
+        color: #2563EB;
+        font-size: 1.8rem !important;
+        margin-top: 2rem !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Code input */
+    .stTextArea textarea {
+        font-family: 'Courier New', Courier, monospace;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 8px !important;
+        background-color: #F8FAFC !important;
+        padding: 1rem !important;
+    }
+    
+    /* Button */
+    .stButton button {
+        background-color: #2563EB !important;
+        color: white !important;
+        padding: 0.5rem 2rem !important;
+        border-radius: 8px !important;
+        border: none !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton button:hover {
+        background-color: #1D4ED8 !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    /* Vulnerability cards */
+    .vulnerability-card {
+        background-color: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid #E5E7EB;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .vulnerability-card.high {
+        border-left: 4px solid #DC2626;
+    }
+    .vulnerability-card.medium {
+        border-left: 4px solid #F59E0B;
+    }
+    .vulnerability-card.low {
+        border-left: 4px solid #10B981;
+    }
+    
+    /* Code blocks */
+    .code-block {
+        background-color: #1e1e1e !important;
+        color: #d4d4d4 !important;
+        padding: 1rem;
+        border-radius: 6px;
+        font-family: 'Courier New', Courier, monospace;
+        margin: 1rem 0;
+        overflow-x: auto;
+        border: 1px solid #333333;
+        line-height: 1.5;
+        font-size: 0.9rem;
+    }
+
+    /* Add styles for specific code elements */
+    .code-block .string { color: #ce9178 !important; }
+    .code-block .keyword { color: #569cd6 !important; }
+    .code-block .comment { color: #6a9955 !important; }
+    .code-block .variable { color: #9cdcfe !important; }
+
+    /* Make sure inline code uses these colors too */
+    code {
+        color: #d4d4d4;
+        background-color: #1e1e1e;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+    }
+
+    /* Override any white background in vulnerability cards for code blocks */
+    .vulnerability-card .code-block {
+        background-color: #1e1e1e !important;
+        color: #d4d4d4 !important;
+    }
+
+    /* Make sure code inside code blocks inherits the right color */
+    .code-block code {
+        color: inherit;
+        background-color: transparent;
+        padding: 0;
+    }
+    
+    /* Summary section */
+    .summary-card {
+        background-color: #F8FAFC;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border: 1px solid #E5E7EB;
+    }
+    
+    /* Risk level badges */
+    .risk-badge {
+        display: inline-block;
+        padding: 0.25rem 1rem;
+        border-radius: 9999px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        margin-left: 0.5rem;
+    }
+    .risk-badge.high {
+        background-color: #FEE2E2;
+        color: #DC2626;
+    }
+    .risk-badge.medium {
+        background-color: #FEF3C7;
+        color: #D97706;
+    }
+    .risk-badge.low {
+        background-color: #D1FAE5;
+        color: #059669;
+    }
+    
+    /* Demo section */
+    .demo-container {
+        background-color: #F8FAFC;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #E5E7EB;
+    }
+    .demo-title {
+        color: #2563EB;
+        font-size: 1rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Make radio buttons more visible */
+    .stRadio > label {
+        color: #1E3A8A !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Style the selectbox */
+    .stSelectbox > label {
+        color: #1E3A8A !important;
+        font-weight: 500 !important;
+    }
+    
+    .stSelectbox > div > div {
+        background-color: white !important;
+        border: 1px solid #E5E7EB !important;
+        border-radius: 8px !important;
+    }
+
+    /* Improve spacing */
+    .vulnerability-card h3 {
+        color: #1e3a8a;
+        margin-bottom: 1rem !important;
+        font-size: 1.3rem !important;
+    }
+
+    /* Better spacing for paragraphs in cards */
+    .vulnerability-card p {
+        margin-bottom: 0.75rem !important;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # Try to get API key from different sources
