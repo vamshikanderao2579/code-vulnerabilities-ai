@@ -319,7 +319,8 @@ def get_secure_code_example(vuln_type):
 def analyze_code(code):
     prompt = """
     You are a security expert analyzing code for vulnerabilities. 
-    Your task is to return ONLY a JSON object in the following exact format:
+    Your task is to return ONLY a JSON object in the following exact format, with no additional text or explanation:
+
     {
         "vulnerabilities": [
             {
@@ -327,26 +328,84 @@ def analyze_code(code):
                 "severity": "high/medium/low",
                 "description": "clear description of the issue",
                 "recommendation": "specific steps to fix it",
-                "code_block": "exact vulnerable code"
+                "code_block": "exact vulnerable code",
+                "secure_code": "complete secure version of the code showing how to fix it"
             }
         ],
         "summary": "brief overview of findings",
         "risk_level": "high/medium/low"
     }
+
+    Important rules:
+    1. Each vulnerability must include complete secure_code that shows the fixed version
+    2. severity and risk_level must be exactly "high", "medium", or "low" (lowercase)
+    3. code_block should contain the exact vulnerable code snippet from the input
+    4. secure_code should be a complete, working example of the fixed code
+    5. Return ONLY the JSON object, no other text or markdown
+
     Analyze this code:
     """
     
     try:
-        response = model.generate_content(prompt + code)
-        if response.parts:
-            result_text = response.text.strip()
-            if '```json' in result_text:
-                result_text = result_text.split('```json')[1].split('```')[0].strip()
-            elif '```' in result_text:
-                result_text = result_text.split('```')[1].split('```')[0].strip()
-            return json.loads(result_text)
+        response = model.generate_content(
+            prompt + code,
+            generation_config={
+                'temperature': 0.1,
+                'max_output_tokens': 2000,
+            }
+        )
+        
+        if not response.text:
+            raise Exception("No response generated")
+            
+        # Debug: Print raw response
+        st.debug(f"Raw response: {response.text}")
+            
+        # Clean up the response text
+        result_text = response.text.strip()
+        
+        # Handle markdown code blocks if present
+        if '```json' in result_text:
+            result_text = result_text.split('```json')[1].split('```')[0].strip()
+        elif '```' in result_text:
+            result_text = result_text.split('```')[1].split('```')[0].strip()
+            
+        # Debug: Print cleaned text
+        st.debug(f"Cleaned text: {result_text}")
+            
+        # Parse JSON
+        try:
+            result = json.loads(result_text)
+            
+            # Debug: Print parsed result
+            st.debug(f"Parsed result: {json.dumps(result, indent=2)}")
+            
+            # Validate required fields
+            required_fields = ['vulnerabilities', 'summary', 'risk_level']
+            if not all(field in result for field in required_fields):
+                missing = [f for f in required_fields if f not in result]
+                raise ValueError(f"Missing required fields: {', '.join(missing)}")
+                
+            # Validate vulnerabilities structure
+            if not isinstance(result['vulnerabilities'], list):
+                raise ValueError("'vulnerabilities' must be a list")
+                
+            for vuln in result['vulnerabilities']:
+                required_vuln_fields = ['type', 'severity', 'description', 'recommendation', 'code_block', 'secure_code']
+                if not all(field in vuln for field in required_vuln_fields):
+                    missing = [f for f in required_vuln_fields if f not in vuln]
+                    raise ValueError(f"Vulnerability missing required fields: {', '.join(missing)}")
+                    
+            return result
+            
+        except json.JSONDecodeError as e:
+            st.error(f"Invalid JSON format: {str(e)}")
+            st.error("Raw response:")
+            st.code(result_text)
+            return None
+            
     except Exception as e:
-        st.error(f"Error analyzing code: {str(e)}")
+        st.error(f"Error during analysis: {str(e)}")
         return None
 
 def load_example():
@@ -405,30 +464,32 @@ def main():
                 """, unsafe_allow_html=True)
                 
                 # Vulnerabilities Section
-                st.markdown("<h2>Vulnerabilities Found</h2>", unsafe_allow_html=True)
-                
-                for vuln in result['vulnerabilities']:
-                    secure_code = get_secure_code_example(vuln['type'])
-                    st.markdown(f"""
-                        <div class="vulnerability-card {vuln['severity']}">
-                            <h3>{vuln['type']}</h3>
-                            <p><strong>Severity:</strong> 
-                                <span class="risk-badge {vuln['severity']}">{vuln['severity'].upper()}</span>
-                            </p>
-                            <p><strong>Description:</strong> {vuln['description']}</p>
-                            <div class="code-comparison">
-                                <div class="code-section">
-                                    <h4>Vulnerable Code</h4>
-                                    <div class="code-block"><code>{vuln['code_block']}</code></div>
+                if result['vulnerabilities']:
+                    st.markdown("<h2>Vulnerabilities Found</h2>", unsafe_allow_html=True)
+                    
+                    for vuln in result['vulnerabilities']:
+                        st.markdown(f"""
+                            <div class="vulnerability-card {vuln['severity']}">
+                                <h3>{vuln['type']}</h3>
+                                <p><strong>Severity:</strong> 
+                                    <span class="risk-badge {vuln['severity']}">{vuln['severity'].upper()}</span>
+                                </p>
+                                <p><strong>Description:</strong> {vuln['description']}</p>
+                                <div class="code-comparison">
+                                    <div class="code-section">
+                                        <h4>Vulnerable Code</h4>
+                                        <div class="code-block"><code>{vuln['code_block']}</code></div>
+                                    </div>
+                                    <div class="code-section">
+                                        <h4>Secure Code</h4>
+                                        <div class="code-block"><code>{vuln['secure_code']}</code></div>
+                                    </div>
                                 </div>
-                                <div class="code-section">
-                                    <h4>Recommended Secure Code</h4>
-                                    <div class="code-block"><code>{secure_code}</code></div>
-                                </div>
+                                <p><strong>Recommendation:</strong> {vuln['recommendation']}</p>
                             </div>
-                            <p><strong>Recommendation:</strong> {vuln['recommendation']}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                else:
+                    st.success("No vulnerabilities found in the code!")
 
 if __name__ == '__main__':
     main()
