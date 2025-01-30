@@ -7,6 +7,52 @@ import json
 # Load environment variables
 load_dotenv()
 
+# Sample vulnerable code examples
+DEMO_EXAMPLES = {
+    "SQL Injection Example": """
+from flask import Flask, request
+import sqlite3
+
+app = Flask(__name__)
+
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    db = sqlite3.connect('database.db')
+    cursor = db.cursor()
+    # Vulnerable to SQL injection
+    cursor.execute(f"SELECT * FROM products WHERE name LIKE '%{query}%'")
+    results = cursor.fetchall()
+    return str(results)
+""",
+    "File Upload Vulnerability": """
+from flask import Flask, request
+import os
+
+app = Flask(__name__)
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    file = request.files['file']
+    # Vulnerable to path traversal and unrestricted file upload
+    filename = file.filename
+    file.save(os.path.join('/uploads', filename))
+    return 'File uploaded successfully'
+""",
+    "Command Injection Example": """
+from flask import Flask, request
+import subprocess
+
+app = Flask(__name__)
+
+@app.route('/ping', methods=['POST'])
+def ping():
+    host = request.form['host']
+    # Vulnerable to command injection
+    result = subprocess.check_output(f'ping -c 1 {host}', shell=True)
+    return result.decode()
+"""
+}
 # Page configuration
 st.set_page_config(
     page_title="Code Vulnerability Scanner",
@@ -15,6 +61,51 @@ st.set_page_config(
 )
 
 # Custom CSS for better UI
+st.markdown("""
+    <style>
+        /* Improve spacing between input and button */
+        .stButton {
+            margin-top: 1rem;
+        }
+        
+        /* Better alignment for select box */
+        .stSelectbox {
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Improve demo section spacing */
+        .demo-title {
+            margin-top: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* Make the text area fill the column better */
+        .stTextArea {
+            margin-bottom: 1rem;
+        }
+        
+        /* Improve code block readability */
+        .code-block code {
+            padding: 0.5rem;
+            display: block;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+        
+        /* Better spacing for vulnerability cards */
+        .vulnerability-card {
+            margin: 1.5rem 0;
+        }
+        
+        /* Improve header spacing */
+        .vulnerability-card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #1E3A8A;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
     <style>
         /* Main container */
@@ -126,6 +217,46 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+    <style>
+        /* Previous styles remain... */
+        
+        /* Demo section styling */
+        .demo-container {
+            background-color: #F8FAFC;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #E5E7EB;
+        }
+        
+        .demo-title {
+            color: #2563EB;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Make radio buttons more visible */
+        .stRadio > label {
+            color: #1E3A8A !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Style the selectbox */
+        .stSelectbox > label {
+            color: #1E3A8A !important;
+            font-weight: 500 !important;
+        }
+        
+        .stSelectbox > div > div {
+            background-color: white !important;
+            border: 1px solid #E5E7EB !important;
+            border-radius: 8px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # Try to get API key from different sources
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -193,20 +324,52 @@ def analyze_code(code):
         st.error(f"Error analyzing code: {str(e)}")
         return None
 
+
 def main():
     st.title("Code Vulnerability Scanner")
     
-    code = st.text_area("Paste your code here:", height=200)
+    # Create two columns for the input section
+    col1, col2 = st.columns([3, 1])
     
-    col1, col2, col3 = st.columns([1, 1, 4])
+    with col1:
+        code = st.text_area("Paste your code here:", height=200)
+    
+    with col2:
+        st.markdown("""
+            <div class="demo-title">Try a Demo</div>
+        """, unsafe_allow_html=True)
+        
+        demo_selection = st.selectbox(
+            "Load example code:",
+            ["Select an example..."] + list(DEMO_EXAMPLES.keys()),
+            key="demo_select"
+        )
+        
+        if st.button("Load Example", key="load_example") and demo_selection != "Select an example...":
+            code = DEMO_EXAMPLES[demo_selection]
+            # Use st.experimental_rerun() to update the text area
+            st.session_state['code_input'] = code
+            st.experimental_rerun()
+    
+    # If there's code in the session state, update the text area
+    if 'code_input' in st.session_state:
+        st.session_state['code_input'] = code
+    
+    # Center the analyze button
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         analyze_button = st.button("Analyze Code", use_container_width=True)
     
-    if analyze_button and code.strip():
+    if analyze_button:
+        if not code.strip():
+            st.warning("Please enter some code to analyze or select a demo example.")
+            return
+            
         with st.spinner("Analyzing code..."):
             result = analyze_code(code)
             
             if result:
+                # Display results [Previous display code remains the same...]
                 # Summary Section
                 st.markdown(f"""
                     <div class="summary-card">
